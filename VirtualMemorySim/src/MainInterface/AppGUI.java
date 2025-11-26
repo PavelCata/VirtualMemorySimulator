@@ -67,7 +67,7 @@ public class AppGUI extends JFrame {
                     JOptionPane.PLAIN_MESSAGE
             );
 
-            if (text == null) return; // Cancel
+            if (text == null) return;
 
             text = text.trim();
             if (text.isEmpty()) {
@@ -94,6 +94,7 @@ public class AppGUI extends JFrame {
         btnExit.addActionListener(e -> System.exit(0));
 
         pack();
+        setSize(1920,800);
         setLocationRelativeTo(null);
         setVisible(true);
     }

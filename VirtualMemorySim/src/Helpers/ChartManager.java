@@ -16,7 +16,7 @@ public class ChartManager {
     public static void showCharts() {
         File dir = new File("runs");
         if (!dir.exists()) {
-            JOptionPane.showMessageDialog(null, "Folderul 'runs' nu exista!");
+            JOptionPane.showMessageDialog(null, "Folder-ul 'runs' nu exista");
             return;
         }
 
@@ -88,7 +88,7 @@ public class ChartManager {
 
         for (File file : files) {
             try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-                br.readLine(); // header
+                br.readLine();
 
                 for (int i = 0; i < steps; i++) {
                     String line = br.readLine();
@@ -108,7 +108,6 @@ public class ChartManager {
             double avg = sum[i] / fileCount;
             series.add(i + 1, avg);
         }
-
         return series;
     }
 
