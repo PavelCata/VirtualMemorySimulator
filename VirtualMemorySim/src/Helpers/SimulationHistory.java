@@ -3,51 +3,69 @@ package Helpers;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 public class SimulationHistory {
-    private static final String LOG_FOLDER = "runs";
-    private FileWriter writer;
+
+    private FileWriter writerSingleRun;
     private int step = 0;
+    private String algorithm;
 
-    public SimulationHistory(String algorithmName) {
+    private static int runCounterOptimal = 1;
+    private static int runCounterFIFO = 1;
+    private static int runCounterLRU = 1;
+
+    public SimulationHistory(String algorithm) {
+        this.algorithm = algorithm;
+
+        File dir = new File("runs");
+        if (!dir.exists()) dir.mkdir();
+
+        String algoLower = algorithm.toLowerCase();
+        int runIndex = getRunIndex(algorithm);
+
+        String fileName = "runs/" + algoLower + "_run_" + runIndex + ".csv";
+
         try {
-            File dir = new File(LOG_FOLDER);
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-
-            String timestamp = LocalDateTime.now()
-                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
-            File file = new File(dir, algorithmName + "_" + timestamp + ".csv");
-
-            writer = new FileWriter(file);
-            writer.write("Step,Page,Hits,Misses\n");
+            writerSingleRun = new FileWriter(fileName, false);
+            writerSingleRun.write("Step,Page,Hit,Miss,Hits,Misses\n");
         } catch (IOException e) {
             e.printStackTrace();
-            writer = null;
         }
     }
 
-    public void logStep(int page, StepResult result) {
-        if (writer == null || result == null) return;
-        step++;
+    private int getRunIndex(String algo) {
+        return switch (algo) {
+            case "Optimal" -> runCounterOptimal++;
+            case "FIFO" -> runCounterFIFO++;
+            case "LRU" -> runCounterLRU++;
+            default -> 1;
+        };
+    }
+
+    public void logStep(int page, StepResult stepResult) {
         try {
-            writer.write(step + "," + page + "," + result.hits + "," + result.misses + "\n");
-            writer.flush();
+            step++;
+
+            String line =
+                    step + "," +
+                            page + "," +
+                            stepResult.hit + "," +
+                            (!stepResult.hit) + "," +
+                            stepResult.hits + "," +
+                            stepResult.misses + "\n";
+
+            writerSingleRun.write(line);
+
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     public void close() {
-        if (writer != null) {
-            try {
-                writer.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        try {
+            if (writerSingleRun != null) writerSingleRun.close();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }

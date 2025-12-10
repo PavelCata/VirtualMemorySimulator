@@ -1,0 +1,13 @@
+Step,Page,Hit,Miss,Hits,Misses
+1,9,false,true,0,1
+2,6,false,true,0,2
+3,11,false,true,0,3
+4,5,false,true,0,4
+5,9,true,false,1,4
+6,9,true,false,2,4
+7,6,true,false,3,4
+8,9,true,false,4,4
+9,7,false,true,4,5
+10,3,false,true,4,6
+11,2,false,true,4,7
+12,5,true,false,5,7

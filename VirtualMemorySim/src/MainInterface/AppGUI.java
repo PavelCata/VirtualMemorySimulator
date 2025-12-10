@@ -9,12 +9,35 @@ import Helpers.StepResult;
 import Helpers.SimulationHistory;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.Arrays;
 
 public class AppGUI extends JFrame {
+    private Timer autoTimer;
+    private static final Color BG_MAIN = new Color(0xF4F4F7);
+    private static final Color CARD_BG = Color.WHITE;
+    private static final Color BORDER_COLOR = new Color(0xD0D0D5);
+    private static final Color TEXT_COLOR = new Color(0x222222);
 
-    private int[] pages = PageGenerator.generatePages(10, 13);
+    private static final Color SECONDARY_DEFAULT_BG = new Color(0xE4E4EA);
+    private static final Color SECONDARY_CURRENT_BG = new Color(0xFFE7A0);
+
+    private static final Color FRAME_EMPTY_BG = Color.WHITE;
+    private static final Color FRAME_HIT_BG = new Color(0xCDECCB);
+    private static final Color FRAME_MISS_BG = new Color(0xFAD0C3);
+
+    private static final Color BUTTON_BG = new Color(0xE0E2F3);
+    private static final Color BUTTON_BG_HOVER = new Color(0xD1D4F0);
+
+    private final Font baseFont = new Font("Segoe UI", Font.PLAIN, 14);
+    private final Font titleFont = new Font("Segoe UI", Font.BOLD, 14);
+    private final Font monoFont = new Font("Consolas", Font.PLAIN, 13);
+
+    private int[] pages = PageGenerator.generatePages(12, 15);
     private int frames = PageGenerator.generateFrameCount(2, 4);
 
     private JTextArea output = new JTextArea(15, 40);
@@ -32,15 +55,16 @@ public class AppGUI extends JFrame {
     public AppGUI() {
         setTitle("Page Replacement Simulator");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setLayout(new BorderLayout());
+        setLayout(new BorderLayout(15, 15));
+        getContentPane().setBackground(BG_MAIN);
 
-        output.setEditable(false);
-        add(new JScrollPane(output), BorderLayout.CENTER);
+        ((JComponent) getContentPane()).setBorder(new EmptyBorder(15, 15, 15, 15));
 
         JPanel memContainer = new JPanel(new GridLayout(2, 1, 10, 10));
+        memContainer.setOpaque(false);
 
-        ramPanel.setBorder(BorderFactory.createTitledBorder("Memorie fizica"));
-        secondaryPanel.setBorder(BorderFactory.createTitledBorder("Memorie secundara"));
+        styleSectionPanel(ramPanel, "Memorie fizica");
+        styleSectionPanel(secondaryPanel, "Memorie secundara");
 
         ramPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 10, 10));
         secondaryPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 5, 5));
@@ -53,36 +77,83 @@ public class AppGUI extends JFrame {
         refreshSecondaryPanel();
         refreshRamPanelEmpty();
 
+        JPanel outputCard = new JPanel(new BorderLayout());
+        outputCard.setBackground(CARD_BG);
+        outputCard.setBorder(createTitledCardBorder("Detalii simulare"));
 
-        JPanel buttons = new JPanel(new GridLayout(4, 2, 10, 10));
-        JButton btnOptimal = new JButton("Run Optimal");
-        JButton btnCharts = new JButton("Show Charts");
-        JButton btnFIFO = new JButton("Run FIFO");
-        JButton btnCustom = new JButton("Custom Sequence");
-        JButton btnLRU = new JButton("Run LRU");
-        JButton btnNew = new JButton("New Random Pages");
-        JButton btnStep = new JButton("Step");
-        JButton btnExit = new JButton("Exit");
+        output.setEditable(false);
+        output.setFont(monoFont);
+        output.setForeground(TEXT_COLOR);
+        output.setBackground(Color.WHITE);
+        output.setMargin(new Insets(8, 8, 8, 8));
 
-        buttons.add(btnOptimal);
-        buttons.add(btnCharts);
-        buttons.add(btnFIFO);
-        buttons.add(btnCustom);
-        buttons.add(btnLRU);
-        buttons.add(btnNew);
-        buttons.add(btnStep);
-        buttons.add(btnExit);
+        JScrollPane scroll = new JScrollPane(output);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        outputCard.add(scroll, BorderLayout.CENTER);
 
-        add(buttons, BorderLayout.SOUTH);
+        add(outputCard, BorderLayout.CENTER);
+
+        JPanel controlsContainer = new JPanel(new BorderLayout(10, 10));
+        controlsContainer.setOpaque(false);
+
+        JPanel buttonsPanel = new JPanel(new GridLayout(2, 2, 10, 10));
+        buttonsPanel.setOpaque(false);
+
+        JPanel algoPanel = createButtonGroupPanel("Algoritmi");
+        JButton btnOptimal = createButton("Run Optimal");
+        JButton btnFIFO = createButton("Run FIFO");
+        JButton btnLRU = createButton("Run LRU");
+        algoPanel.add(btnOptimal);
+        algoPanel.add(btnFIFO);
+        algoPanel.add(btnLRU);
+
+        JPanel simPanel = createButtonGroupPanel("Simulare");
+        JButton btnExit = createButton("EXIT");
+        JButton btnStart = createButton("Start Simulation");
+        simPanel.add(btnStart);
+        simPanel.add(btnExit);
+
+        JPanel seqPanel = createButtonGroupPanel("Secvente");
+        JButton btnCustom = createButton("Custom Sequence");
+        JButton btnNew = createButton("New Random Pages");
+        seqPanel.add(btnCustom);
+        seqPanel.add(btnNew);
+
+        JPanel analysisPanel = createButtonGroupPanel("Analiza");
+        JButton btnCharts = createButton("Show Charts");
+        analysisPanel.add(btnCharts);
+
+        buttonsPanel.add(algoPanel);
+        buttonsPanel.add(simPanel);
+        buttonsPanel.add(seqPanel);
+        buttonsPanel.add(analysisPanel);
+
+        controlsContainer.add(buttonsPanel, BorderLayout.CENTER);
+        add(controlsContainer, BorderLayout.SOUTH);
 
         btnOptimal.addActionListener(e -> startAlgorithm("Optimal"));
         btnFIFO.addActionListener(e -> startAlgorithm("FIFO"));
         btnLRU.addActionListener(e -> startAlgorithm("LRU"));
 
-        btnStep.addActionListener(e -> doStep());
+
+        btnStart.addActionListener(e -> {
+            if (currentAlgorithm.isEmpty()) {
+                output.append("Select an algorithm first.\n");
+                return;
+            }
+
+            if (autoTimer != null && autoTimer.isRunning())
+                return;
+
+            autoTimer = new Timer(1200, ev -> doStep());
+            autoTimer.start();
+
+            output.append("Simulation running...\n");
+        });
+
 
         btnNew.addActionListener(e -> {
-            pages = PageGenerator.generatePages(10, 13);
+            pages = PageGenerator.generatePages(12, 15);
             frames = PageGenerator.generateFrameCount(2, 4);
             output.setText("Generated NEW random pages:\n" +
                     Arrays.toString(pages) +
@@ -93,9 +164,10 @@ public class AppGUI extends JFrame {
         });
 
         btnCustom.addActionListener(e -> {
+
             String text = JOptionPane.showInputDialog(
                     this,
-                    "Enter custom sequence (ex: 1 2 3 4 1 2 5 1 2 3):",
+                    "Enter custom sequence:",
                     "Custom Sequence",
                     JOptionPane.PLAIN_MESSAGE
             );
@@ -116,7 +188,30 @@ public class AppGUI extends JFrame {
                     newPages[i] = Integer.parseInt(parts[i]);
 
                 pages = newPages;
-                output.setText("Custom sequence set:\n" + Arrays.toString(pages));
+
+                String fText = JOptionPane.showInputDialog(
+                        this,
+                        "Enter number of frames:",
+                        "Frame Count",
+                        JOptionPane.PLAIN_MESSAGE
+                );
+
+                if (fText == null) return;
+                fText = fText.trim();
+
+                int newFrames = Integer.parseInt(fText);
+
+                if (newFrames <= 0) {
+                    JOptionPane.showMessageDialog(this, "Frame count must be > 0");
+                    return;
+                }
+
+                frames = newFrames;
+
+                output.setText(
+                        "Custom sequence set:\n" + Arrays.toString(pages) +
+                                "\nFrames: " + frames
+                );
 
                 refreshSecondaryPanel();
                 refreshRamPanelEmpty();
@@ -126,17 +221,128 @@ public class AppGUI extends JFrame {
             }
         });
 
-        btnCharts.addActionListener(e -> ChartManager.showCharts());
+
+        btnCharts.addActionListener(e -> {
+            String[] opts = {
+                    "Charts for One Algorithm",
+                    "Combined Average (All Algorithms)"
+            };
+
+            String choice = (String) JOptionPane.showInputDialog(
+                    this,
+                    "Select chart type:",
+                    "Charts",
+                    JOptionPane.PLAIN_MESSAGE,
+                    null,
+                    opts,
+                    opts[0]
+            );
+
+            if (choice == null) return;
+
+            switch (choice) {
+                case "Charts for One Algorithm" -> {
+                    String[] algos = {"FIFO", "LRU", "Optimal"};
+                    String selectedAlgo = (String) JOptionPane.showInputDialog(
+                            this,
+                            "Choose algorithm:",
+                            "Algorithm",
+                            JOptionPane.PLAIN_MESSAGE,
+                            null,
+                            algos,
+                            algos[0]
+                    );
+                    if (selectedAlgo != null)
+                        ChartManager.showLastRunChart(selectedAlgo);
+                }
+
+                case "Combined Average (All Algorithms)" ->
+                        ChartManager.showCombinedAverageCharts();
+            }
+        });
+
+
+
         btnExit.addActionListener(e -> System.exit(0));
 
-        setSize(1920, 800);
+        setSize(1280, 800);
         setLocationRelativeTo(null);
+        setMinimumSize(new Dimension(1000, 700));
         setVisible(true);
+    }
+
+
+    private void styleSectionPanel(JPanel panel, String title) {
+        panel.setBackground(CARD_BG);
+        TitledBorder tb = BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR),
+                title,
+                TitledBorder.LEFT,
+                TitledBorder.TOP
+        );
+        tb.setTitleFont(titleFont);
+        tb.setTitleColor(TEXT_COLOR);
+        panel.setBorder(tb);
+    }
+
+    private TitledBorder createTitledCardBorder(String title) {
+        TitledBorder tb = BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR),
+                title,
+                TitledBorder.LEFT,
+                TitledBorder.TOP
+        );
+        tb.setTitleFont(titleFont);
+        tb.setTitleColor(TEXT_COLOR);
+        return tb;
+    }
+
+    private JButton createButton(String text) {
+        JButton btn = new JButton(text);
+        btn.setFont(baseFont);
+        btn.setBackground(BUTTON_BG);
+        btn.setForeground(TEXT_COLOR);
+        btn.setFocusPainted(false);
+        btn.setBorder(BorderFactory.createLineBorder(BORDER_COLOR));
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.setOpaque(true);
+
+        btn.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                btn.setBackground(BUTTON_BG_HOVER);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                btn.setBackground(BUTTON_BG);
+            }
+        });
+
+        return btn;
+    }
+
+    private JPanel createButtonGroupPanel(String title) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        panel.setBackground(CARD_BG);
+        TitledBorder tb = BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR),
+                title,
+                TitledBorder.LEFT,
+                TitledBorder.TOP
+        );
+        tb.setTitleFont(titleFont);
+        tb.setTitleColor(TEXT_COLOR);
+        panel.setBorder(tb);
+        return panel;
     }
 
     private void startAlgorithm(String type) {
         currentAlgorithm = type;
         stepIndex = 0;
+
+        if (autoTimer != null && autoTimer.isRunning())
+            autoTimer.stop();
 
         optimal = null;
         fifo = null;
@@ -150,10 +356,13 @@ public class AppGUI extends JFrame {
 
         history = new SimulationHistory(type);
 
-        output.setText(type + " started.\n");
+        output.setText(type + " loaded.\nPress START to begin simulation.\n");
+
         refreshSecondaryPanel();
         refreshRamPanelEmpty();
     }
+
+
 
     private void doStep() {
         StepResult result = null;
@@ -171,7 +380,8 @@ public class AppGUI extends JFrame {
 
         if (result == null) {
             output.append("Simulation finished.\n");
-            history.close();
+            if (history != null) history.close();
+            if (autoTimer != null) autoTimer.stop();
             return;
         }
 
@@ -185,6 +395,7 @@ public class AppGUI extends JFrame {
         stepIndex++;
     }
 
+
     private void highlightSecondary(int index) {
         secondaryPanel.removeAll();
 
@@ -193,10 +404,11 @@ public class AppGUI extends JFrame {
             lbl.setOpaque(true);
             lbl.setHorizontalAlignment(SwingConstants.CENTER);
             lbl.setPreferredSize(new Dimension(35, 35));
-            lbl.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
+            lbl.setBorder(BorderFactory.createLineBorder(BORDER_COLOR));
+            lbl.setFont(baseFont);
 
-            if (i == index) lbl.setBackground(Color.YELLOW);
-            else lbl.setBackground(Color.LIGHT_GRAY);
+            if (i == index) lbl.setBackground(SECONDARY_CURRENT_BG);
+            else lbl.setBackground(SECONDARY_DEFAULT_BG);
 
             secondaryPanel.add(lbl);
         }
@@ -213,8 +425,9 @@ public class AppGUI extends JFrame {
             lbl.setOpaque(true);
             lbl.setHorizontalAlignment(SwingConstants.CENTER);
             lbl.setPreferredSize(new Dimension(35, 35));
-            lbl.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
-            lbl.setBackground(Color.LIGHT_GRAY);
+            lbl.setBorder(BorderFactory.createLineBorder(BORDER_COLOR));
+            lbl.setBackground(SECONDARY_DEFAULT_BG);
+            lbl.setFont(baseFont);
 
             secondaryPanel.add(lbl);
         }
@@ -231,8 +444,9 @@ public class AppGUI extends JFrame {
             lbl.setOpaque(true);
             lbl.setHorizontalAlignment(SwingConstants.CENTER);
             lbl.setPreferredSize(new Dimension(50, 50));
-            lbl.setBorder(BorderFactory.createLineBorder(Color.BLACK));
-            lbl.setBackground(Color.WHITE);
+            lbl.setBorder(BorderFactory.createLineBorder(BORDER_COLOR));
+            lbl.setBackground(FRAME_EMPTY_BG);
+            lbl.setFont(baseFont);
 
             ramPanel.add(lbl);
         }
@@ -253,12 +467,13 @@ public class AppGUI extends JFrame {
             lbl.setOpaque(true);
             lbl.setHorizontalAlignment(SwingConstants.CENTER);
             lbl.setPreferredSize(new Dimension(50, 50));
-            lbl.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+            lbl.setBorder(BorderFactory.createLineBorder(BORDER_COLOR));
+            lbl.setFont(baseFont);
 
             if (step.hit)
-                lbl.setBackground(new Color(52, 189, 35));
+                lbl.setBackground(FRAME_HIT_BG);
             else
-                lbl.setBackground(new Color(255, 143, 94));
+                lbl.setBackground(FRAME_MISS_BG);
 
             ramPanel.add(lbl);
         }
@@ -268,8 +483,9 @@ public class AppGUI extends JFrame {
             lbl.setOpaque(true);
             lbl.setHorizontalAlignment(SwingConstants.CENTER);
             lbl.setPreferredSize(new Dimension(50, 50));
-            lbl.setBorder(BorderFactory.createLineBorder(Color.BLACK));
-            lbl.setBackground(Color.WHITE);
+            lbl.setBorder(BorderFactory.createLineBorder(BORDER_COLOR));
+            lbl.setBackground(FRAME_EMPTY_BG);
+            lbl.setFont(baseFont);
 
             ramPanel.add(lbl);
         }
@@ -277,7 +493,6 @@ public class AppGUI extends JFrame {
         ramPanel.revalidate();
         ramPanel.repaint();
     }
-
 
     private String printStep(StepResult step) {
         return "Frames: " + step.frames +
